@@ -1,3 +1,193 @@
-<html>
-  <body>hello OUTPUT</body>
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>تطبيق Border Radius على الصور</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      direction: rtl;
+    }
+    input, button, label {
+      margin: 10px;
+    }
+    .image-container {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 20px;
+    }
+    .image-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    canvas {
+      background: transparent;
+      max-width: 200px;
+      /* الحد الأقصى لعرض الصورة */
+      max-height: 200px;
+      /* الحد الأقصى لارتفاع الصورة */
+    }
+    .download-btn {
+      margin-top: 5px;
+      padding: 5px 10px;
+      background: #007BFF;
+      color: white;
+      border: none;
+      cursor: pointer;
+      border-radius: 5px;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>رفع الصور وتطبيق Border Radius</h2>
+  <input type="file" id="imageInput" multiple accept="image/*">
+  <input type="text" id="radiusInput" placeholder="أدخل قيمة border-radius (px أو %)" value="50%">
+  <label>
+    <input type="checkbox" id="keepOriginalRatio"> عدم تقصير الصورة إلى مربع
+  </label>
+  <button onclick="applyBorderRadius()">تطبيق</button>
+  <button onclick="downloadAll()">تحميل الكل</button>
+
+  <div class="image-container" id="imageContainer"></div>
+
+  <script>
+    const imageContainer = document.getElementById("imageContainer");
+    const radiusInput = document.getElementById("radiusInput");
+    const keepOriginalRatioCheckbox = document.getElementById("keepOriginalRatio");
+    let imagesData = [];
+
+    function applyBorderRadius() {
+      let radiusValue = radiusInput.value.trim();
+      if (!radiusValue) {
+        alert("يرجى إدخال قيمة border-radius");
+        return;
+      }
+
+      imageContainer.innerHTML = "";
+      imagesData.forEach(({
+        img, fileName
+      }) => {
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+
+        img.onload = () => {
+          let width = img.width;
+          let height = img.height;
+
+          if (!keepOriginalRatioCheckbox.checked) {
+            // تقصير الصورة إلى مربع
+            const size = Math.min(width, height);
+            width = size;
+            height = size;
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+
+          ctx.clearRect(0, 0, width, height);
+          ctx.beginPath();
+
+          // **إصلاح حساب radius**
+          let radius;
+          if (radiusValue.includes("%")) {
+            let percentage = parseFloat(radiusValue);
+            if (isNaN(percentage) || percentage < 0 || percentage > 100) {
+              percentage = 50; // قيمة افتراضية إذا كانت المدخلة غير صحيحة
+            }
+            radius = (Math.min(width, height) * percentage) / 100;
+          } else {
+            radius = parseFloat(radiusValue);
+            if (isNaN(radius) || radius < 0) {
+              radius = Math.min(width, height) / 2; // افتراضي: نصف حجم الصورة
+            }
+          }
+
+          // **تطبيق قص الشكل الدائري حسب radius المحدد**
+          ctx.moveTo(width - radius, height);
+          ctx.arcTo(0, height, 0, 0, radius);
+          ctx.arcTo(0, 0, width, 0, radius);
+          ctx.arcTo(width, 0, width, height, radius);
+          ctx.arcTo(width, height, 0, height, radius);
+          ctx.closePath();
+          ctx.clip();
+
+          ctx.drawImage(img, 0, 0, width, height);
+
+          const imageWrapper = document.createElement("div");
+          imageWrapper.className = "image-wrapper";
+
+          const downloadBtn = document.createElement("button");
+          downloadBtn.innerText = "تحميل";
+          downloadBtn.className = "download-btn";
+          downloadBtn.onclick = () => downloadImage(canvas, fileName);
+
+          imageWrapper.appendChild(canvas);
+          imageWrapper.appendChild(downloadBtn);
+          imageContainer.appendChild(imageWrapper);
+        };
+
+        img.src = img.src;
+      });
+    }
+
+    function downloadImage(canvas, fileName) {
+      const link = document.createElement("a");
+      link.href = canvas.toDataURL("image/png");
+      link.download = `rounded_${fileName}`;
+      link.click();
+    }
+
+    function downloadAll() {
+      if (imagesData.length === 0) {
+        alert("لا توجد صور للتحميل!");
+        return;
+      }
+
+      const zip = new JSZip();
+      let completed = 0;
+
+      imagesData.forEach(({
+        fileName
+      }, index) => {
+        const canvas = document.querySelectorAll("canvas")[index];
+        canvas.toBlob((blob) => {
+          zip.file(`rounded_${fileName}.png`, blob);
+          completed++;
+          if (completed === imagesData.length) {
+            zip.generateAsync({
+              type: "blob"
+            }).then((content) => {
+              const link = document.createElement("a");
+              link.href = URL.createObjectURL(content);
+              link.download = "rounded_images.zip";
+              link.click();
+            });
+          }
+        },
+          "image/png");
+      });
+    }
+
+    document.getElementById("imageInput").addEventListener("change", function (event) {
+      imagesData = [];
+      imageContainer.innerHTML = "";
+
+      Array.from(event.target.files).forEach((file) => {
+        const img = new Image();
+        img.src = URL.createObjectURL(file);
+        img.onload = () => imagesData.push({
+          img, fileName: file.name
+        });
+      });
+    });
+  </script>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+</body>
 </html>
